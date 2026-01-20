@@ -150,11 +150,12 @@ const userColors = ref<Record<UserKey, string>>({
   valentine: '#15803D', // vert foncé
 });
 
-// URLs par défaut
+// URLs par défauts
 const userICalUrls = ref({
   aksel: "http://edt.enib.fr/ics.php?username=a24stervi&pass='YTI0c3RlcnZp'",
-  div: "http://edt.enib.fr/ics.php?username=a24stervi&pass='YTI0c3RlcnZp'",
-  valentine: "http://edt.enib.fr/ics.php?username=a24stervi&pass='YTI0c3RlcnZp'",
+  div: 'https://ade.univ-brest.fr/jsp/custom/modules/plannings/anonymous_cal.jsp?resources=1568&projectId=1&calType=ical&firstDate=2026-01-19&lastDate=2026-07-01&displayConfigId=25',
+  valentine:
+    'https://ade.univ-brest.fr/jsp/custom/modules/plannings/anonymous_cal.jsp?resources=4367&projectId=1&calType=ical&firstDate=2026-01-19&lastDate=2026-07-01&displayConfigId=25',
 });
 
 type UserKey = 'aksel' | 'div' | 'valentine';
