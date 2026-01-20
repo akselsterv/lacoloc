@@ -11,49 +11,71 @@
       <q-list padding>
         <q-item-label header>Choisir les utilisateurs</q-item-label>
 
-        <q-item v-for="user in users" :key="user">
-          <q-checkbox v-model="selectedUsers[user]" :label="userLabels[user]" />
+        <div v-for="user in users" :key="user" class="q-mb-md">
+          <!-- Checkbox pour l'utilisateur -->
+          <q-item>
+            <q-checkbox v-model="selectedUsers[user]" :label="userLabels[user]" />
+          </q-item>
 
-          <q-input
-            dense
-            filled
-            v-model="userICalUrls[user]"
-            :placeholder="'URL iCal pour ' + userLabels[user]"
-            class="q-ml-md"
-          />
+          <!-- Input URL iCal sous le checkbox -->
+          <q-item class="q-ml-md">
+            <q-input
+              dense
+              filled
+              v-model="userICalUrls[user]"
+              :placeholder="'URL iCal pour ' + userLabels[user]"
+            />
+          </q-item>
 
-          <q-input dense filled v-model="userColors[user]" class="q-ml-md" readonly>
-            <template v-slot:append>
-              <q-icon name="colorize" class="cursor-pointer">
-                <q-popup-proxy cover transition-show="scale" transition-hide="scale">
-                  <q-color v-model="userColors[user]" />
-                </q-popup-proxy>
-              </q-icon>
-            </template>
-          </q-input>
-        </q-item>
+          <!-- Sélecteur de couleur -->
+          <q-item class="q-ml-md">
+            <q-input dense filled v-model="userColors[user]" readonly>
+              <template v-slot:append>
+                <q-icon name="colorize" class="cursor-pointer">
+                  <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+                    <q-color v-model="userColors[user]" />
+                  </q-popup-proxy>
+                </q-icon>
+              </template>
+            </q-input>
+          </q-item>
+        </div>
 
-        <q-btn
-          label="Charger les calendriers"
-          color="primary"
-          class="q-mt-md"
-          @click="loadSelectedICals"
-        />
+        <!-- Bouton centré -->
+        <div class="row justify-center q-mt-lg">
+          <q-btn label="Charger les calendriers" color="primary" @click="loadSelectedICals" />
+        </div>
       </q-list>
     </q-drawer>
 
     <q-page-container>
-      <q-page class="calendar-page">
-        <FullCalendar
-          ref="calendarRef"
-          v-if="calendarOptions"
-          :options="calendarOptions"
-          class="fullcalendar"
-        />
-
+      <q-page
+        class="calendar-page"
+        :style="{ color: current_parametre.txt_color, backgroundColor: current_parametre.bg_color }"
+      >
+        <div class="calendar-container" @touchstart="handleTouchStart" @touchend="handleTouchEnd">
+          <FullCalendar
+            ref="calendarRef"
+            v-if="calendarOptions"
+            :options="calendarOptions"
+            class="fullcalendar"
+            :style="{
+              backgroundColor: current_parametre.bg_color,
+              color: current_parametre.txt_color,
+              transition: 'transform 0.3s ease', // petite animation pour le swipe
+            }"
+          />
+        </div>
         <!-- Dialog pour détails de l'événement -->
         <q-dialog v-model="eventDialog">
-          <q-card style="min-width: 300px">
+          <q-card
+            :style="{
+              backgroundColor: selectedEvent?.color || current_parametre.bg_color,
+              color: selectedEvent?.color
+                ? getContrastingTextColor(selectedEvent.color)
+                : current_parametre.txt_color,
+            }"
+          >
             <q-card-section>
               <div class="text-h6">{{ selectedEvent?.title }}</div>
               <div>
@@ -84,6 +106,19 @@ import interactionPlugin from '@fullcalendar/interaction';
 import frLocale from '@fullcalendar/core/locales/fr';
 import ICAL from 'ical.js';
 import type { CalendarOptions, EventInput } from '@fullcalendar/core';
+
+// parametres
+interface Parametre {
+  txt_color: string;
+  bg_color: string;
+}
+
+const para_defaut = <Parametre>{
+  txt_color: '#ffffff',
+  bg_color: '#303030',
+};
+
+const current_parametre = ref<Parametre>(para_defaut);
 
 // Ref vers FullCalendar
 const calendarRef = ref<InstanceType<typeof FullCalendar> | null>(null);
@@ -142,6 +177,7 @@ async function loadSelectedICals() {
       start: e.start,
       end: e.end,
       color: userColors.value[user],
+      textColor: current_parametre.value.txt_color,
       extendedProps: {
         description: e.description,
         location: e.location,
@@ -219,7 +255,6 @@ const calendarOptions = ref<CalendarOptions>({
   selectable: true,
   editable: true,
   events: [],
-  contentHeight: 'auto',
   slotMinTime: '07:00:00',
   slotMaxTime: '22:00:00',
   slotDuration: '01:00:00',
@@ -243,42 +278,72 @@ const calendarOptions = ref<CalendarOptions>({
       location: info.event.extendedProps.location,
       professor: info.event.extendedProps.professor,
       group: info.event.extendedProps.group,
+      color: info.event.backgroundColor || info.event.borderColor || '#fff',
     };
     eventDialog.value = true;
   },
 });
+function getContrastingTextColor(bgColor: string) {
+  if (!bgColor) return '#000';
+  const c = bgColor.substring(1); // enlever #
+  const rgb = parseInt(c, 16);
+  const r = (rgb >> 16) & 0xff;
+  const g = (rgb >> 8) & 0xff;
+  const b = rgb & 0xff;
+  // luminance
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.5 ? '#000' : '#fff';
+}
+
+const touchStartX = ref<number>(0);
+const touchEndX = ref<number>(0);
+
+function handleTouchStart(e: TouchEvent) {
+  const touch = e.changedTouches.item(0); // .item() renvoie Touch | null
+  if (touch) {
+    touchStartX.value = touch.screenX;
+  }
+}
+
+function handleTouchEnd(e: TouchEvent) {
+  const touch = e.changedTouches.item(0);
+  if (touch) {
+    touchEndX.value = touch.screenX;
+    handleSwipeGesture();
+  }
+}
+
+function handleSwipeGesture() {
+  const deltaX = touchEndX.value - touchStartX.value;
+  const swipeThreshold = 50; // minimum px pour considérer un swipe
+
+  const calendarApi = calendarRef.value?.getApi();
+  if (!calendarApi) return;
+
+  if (deltaX > swipeThreshold) {
+    // swipe vers la droite → semaine précédente
+    calendarApi.prev();
+  } else if (deltaX < -swipeThreshold) {
+    // swipe vers la gauche → semaine suivante
+    calendarApi.next();
+  }
+}
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .calendar-page {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  padding: 0;
+}
+
+.calendar-container {
+  flex: 1;
+  display: flex;
 }
 
 .fullcalendar {
-  touch-action: pan-y;
   flex: 1;
-  width: 100%;
-  min-height: 0;
-  overflow: hidden; /* empêche le scroll lors du swipe */
-}
-
-/* Header FullCalendar mobile-friendly */
-.fc .fc-toolbar-chunk {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.fc .fc-button {
-  font-size: 0.85rem;
-  padding: 0.25rem 0.5rem;
-}
-
-/* Condense les lignes de la semaine */
-.fc .fc-timegrid-slot {
-  height: 30px;
+  flex-direction: column;
 }
 </style>
