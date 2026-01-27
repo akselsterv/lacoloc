@@ -66,6 +66,9 @@
             }"
           />
         </div>
+        <div class="row justify-center q-mt-md">
+          <q-btn label="Ajouter un événement" color="secondary" @click="openAddEventDialog" />
+        </div>
         <!-- Dialog pour détails de l'événement -->
         <q-dialog v-model="eventDialog">
           <q-card
@@ -90,6 +93,64 @@
                 Description: {{ selectedEvent.description }}
               </div>
             </q-card-section>
+          </q-card>
+        </q-dialog>
+        <q-dialog v-model="addEventDialog">
+          <q-card style="min-width: 350px">
+            <q-card-section>
+              <div class="text-h6">Ajouter un événement</div>
+
+              <!-- Titre -->
+              <q-input dense filled v-model="newEvent.title" label="Titre" class="q-mt-sm" />
+
+              <!-- Date de départ -->
+              <q-input
+                dense
+                filled
+                readonly
+                v-model="newEvent.start"
+                label="Date de départ"
+                class="q-mt-sm"
+              >
+                <template v-slot:append>
+                  <q-icon name="event" class="cursor-pointer">
+                    <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+                      <div class="q-pa-md">
+                        <q-date v-model="newEvent.start" mask="YYYY-MM-DD" />
+                        <q-time v-model="newEvent.start" mask="HH:mm" class="q-mt-sm" />
+                      </div>
+                    </q-popup-proxy>
+                  </q-icon>
+                </template>
+              </q-input>
+
+              <!-- Durée en heures -->
+              <q-input
+                dense
+                filled
+                v-model.number="newEvent.duration"
+                type="number"
+                min="0.25"
+                step="0.25"
+                label="Durée (heures)"
+                class="q-mt-sm"
+              />
+
+              <!-- Sélecteur utilisateur -->
+              <q-select
+                dense
+                filled
+                v-model="newEvent.user"
+                :options="users.map((u) => ({ label: userLabels[u], value: u }))"
+                label="Utilisateur"
+                class="q-mt-md"
+              />
+            </q-card-section>
+
+            <q-card-actions align="right">
+              <q-btn flat label="Annuler" v-close-popup />
+              <q-btn flat label="Ajouter" color="primary" @click="saveNewEvent" />
+            </q-card-actions>
           </q-card>
         </q-dialog>
       </q-page>
@@ -159,6 +220,58 @@ const userICalUrls = ref({
 });
 
 type UserKey = 'aksel' | 'div' | 'valentine';
+
+const addEventDialog = ref(false);
+const newEvent = ref<{
+  title?: string;
+  start?: string; // date de départ "YYYY-MM-DD HH:mm"
+  duration?: number; // en heures
+  user?: UserKey | null;
+}>({});
+
+// Ouvrir le dialog avec date de départ préremplie et durée 1h
+function openAddEventDialog() {
+  const now = new Date();
+  newEvent.value = {
+    title: '',
+    start: formatDateTime(now),
+    duration: 1,
+    user: null,
+  };
+  addEventDialog.value = true;
+}
+
+function formatDateTime(date: Date) {
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(
+    date.getHours(),
+  )}:${pad(date.getMinutes())}`;
+}
+
+function saveNewEvent() {
+  const calendarApi = calendarRef.value?.getApi();
+  if (
+    !calendarApi ||
+    !newEvent.value.title ||
+    !newEvent.value.start ||
+    !newEvent.value.duration ||
+    !newEvent.value.user
+  )
+    return;
+
+  const startDate = new Date(newEvent.value.start.replace(' ', 'T'));
+  const endDate = new Date(startDate.getTime() + (newEvent.value.duration || 1) * 60 * 60 * 1000);
+
+  calendarApi.addEvent({
+    title: newEvent.value.title,
+    start: startDate,
+    end: endDate,
+    color: userColors.value[newEvent.value.user],
+    textColor: current_parametre.value.txt_color,
+  });
+
+  addEventDialog.value = false;
+}
 
 async function loadSelectedICals() {
   const api = calendarRef.value?.getApi();
@@ -335,16 +448,19 @@ function handleSwipeGesture() {
 .calendar-page {
   display: flex;
   flex-direction: column;
+  height: 100vh; // prend toute la hauteur de l'ecran
 }
 
 .calendar-container {
   flex: 1;
   display: flex;
+  min-height: 0; // important pour que flex-basis fonctionne
 }
 
 .fullcalendar {
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-height: 0; // important
 }
 </style>
